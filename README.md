@@ -7,10 +7,10 @@ Designed as the **single source of truth** for questionnaire scoring in our lab.
 
 ```r
 # From GitHub
-devtools::install_github("yourlab/labscorer")
+devtools::install_github("cyplessen/labscorer", build_vignettes = TRUE)
 
 # From a local clone
-devtools::install("path/to/labscorer")
+devtools::install("path/to/labscorer", build_vignettes = TRUE)
 ```
 
 ## Quick start

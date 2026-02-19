@@ -36,7 +36,7 @@ in the lab always uses the same scoring rules.
 
 ```r
 # From GitHub (recommended — always up to date)
-devtools::install_github("yourlab/labscorer")
+devtools::install_github("cyplessen/labscorer")
 
 # Or from a local copy
 devtools::install("path/to/labscorer")
