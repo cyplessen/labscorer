@@ -66,7 +66,7 @@ yourself.
 
 ## What's in the package
 
-### Functions
+### Core scoring
 
 | Function | Purpose |
 |---|---|
@@ -76,7 +76,38 @@ yourself.
 | `detect_timepoints(df, scale, prefix)` | Find timepoints in column names |
 | `invert_item(x, min, max)` | Reverse-score an item vector |
 | `unpad_scale_items(df, scales)` | Remove zero-padding from item numbers |
-| `recode_ctq_bagatellization(x)` | Recode CTQ bagatellisation items |
+
+### Scale-specific recoding
+
+| Function | Purpose |
+|---|---|
+| `recode_phq(df)` | PHQ: 0 → NA, 1–4 → 0–3 |
+| `recode_mdrs(df)` | MDRS-22: 1–8 → 0–7 |
+| `recode_ams(df)` | AMS: 0 → NA (scale 1–5) |
+| `recode_ipss(df)` | IPSS: 1–6 → 0–5 |
+| `recode_mcsd(df)` | MCSD: 1–2 → 0–1 |
+| `recode_sb_pni(df, items)` | SB-PNI: 0 → NA, 1–6 → 0–5 |
+| `recode_cgi(df, items)` | CGI-SI: 0 → NA (scale 1–7) |
+| `recode_ctq_bagatellization(x)` | CTQ items 10/16/22: 1–2 → 0, 3–5 → 1 |
+| `rename_scales_os_to_redcap(df)` | Rename OS prefixes to REDCap format |
+
+### Data cleaning
+
+| Function | Purpose |
+|---|---|
+| `recode_missing(df)` | Replace sentinel values (-66, -77, -99) with NA |
+| `recode_binary(x)` | Recode 1/2 (yes/no) to 1/0 |
+| `not_all_na(x)` | Check if a column has any non-NA values |
+| `clear_labels(df)` | Strip label attributes from labelled data |
+| `inspect_missings(df)` | Find columns containing sentinel values |
+
+### Display / QC
+
+| Function | Purpose |
+|---|---|
+| `summarize_range(df, pattern)` | Quick min/max/n summary for matching columns |
+| `fmt_vec(x)` | Format a vector as comma-separated string |
+| `fmt_subscales(subscales)` | Format subscale definitions for display |
 
 ### Data
 
@@ -98,7 +129,9 @@ labscorer/
 │   ├── calculate_sum_scores.R   # Core scoring engine
 │   ├── create_sum_scores.R      # Wrapper with diagnostic database
 │   ├── utils.R                  # Helpers: invert, detect, validate, unpad
-│   ├── recode_helpers.R         # Custom recode functions (e.g. CTQ)
+│   ├── recode_scales.R          # Scale-specific recode functions
+│   ├── data_cleaning.R          # Generic cleaning: recode_missing, clear_labels, etc.
+│   ├── display_helpers.R        # QC display: summarize_range, fmt_vec, etc.
 │   ├── data.R                   # Documentation for scale_specs_all
 │   └── labscorer-package.R      # Package-level docs
 ├── data/
@@ -106,7 +139,8 @@ labscorer/
 ├── data-raw/
 │   └── scale_specs_all.R        # ← EDIT THIS to add/change scales
 ├── tests/testthat/
-│   └── test-scoring.R           # Unit tests
+│   ├── test-scoring.R           # Tests for scoring functions
+│   └── test-helpers.R           # Tests for recode, cleaning, display helpers
 ├── vignettes/
 │   └── getting-started.Rmd      # Tutorial for new lab members
 ├── DESCRIPTION
