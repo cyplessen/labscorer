@@ -1,0 +1,2 @@
+# This directory will contain scale_specs_all.rda after running:
+#   source("data-raw/scale_specs_all.R")

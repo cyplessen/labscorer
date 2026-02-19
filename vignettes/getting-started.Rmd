@@ -1,0 +1,439 @@
+---
+title: "Getting Started with labscorer"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with labscorer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+## Welcome
+
+This tutorial walks you through everything you need to use the lab's scoring
+pipeline. By the end you will know how to:
+
+1. Score an entire dataset with one function call
+2. Read and understand the `scale_database` diagnostics
+3. Look up how any questionnaire is scored
+4. Add a new questionnaire yourself
+
+The `labscorer` package is the **single source of truth** for how we score
+questionnaires. Every scale specification lives inside the package, so everyone
+in the lab always uses the same scoring rules.
+
+---
+
+## Step 0 · Install the package
+
+```r
+# From GitHub (recommended — always up to date)
+devtools::install_github("yourlab/labscorer")
+
+# Or from a local copy
+devtools::install("path/to/labscorer")
+```
+
+Load it:
+
+```{r load}
+library(labscorer)
+library(dplyr)
+library(tidyr)
+library(knitr)
+```
+
+---
+
+## Step 1 · Understand the column naming convention
+
+Every item column in our datasets must follow this pattern:
+
+```
+<timepoint>_<scale>_<item>
+```
+
+For example:
+
+| Column name | Timepoint | Scale | Item |
+|---|---|---|---|
+| `t1_phq_3` | t1 | phq | 3 |
+| `t2_cmni30_15` | t2 | cmni30 | 15 |
+| `s5_p_bpsr_8` | s5 | p_bpsr | 8 |
+
+For cross-sectional data without timepoints, columns are simply `<scale>_<item>`
+(e.g. `phq_3`).
+
+The timepoint prefix (`"t"`, `"s"`, etc.) is set globally via an R option — more
+on that below.
+
+---
+
+## Step 2 · Create a simulated dataset
+
+Let's simulate a small RCT dataset so we can see the pipeline in action. In
+your real work, this would be your imported data from REDCap, Qualtrics, etc.
+
+```{r simulate}
+set.seed(42)
+n <- 20
+
+sim_items <- function(tp, scale, n_items, min_s, max_s, n) {
+  items <- replicate(n_items, sample(min_s:max_s, n, replace = TRUE))
+  colnames(items) <- paste0(tp, "_", scale, "_", seq_len(n_items))
+  # Sprinkle ~2% missing values
+  items[sample(length(items), size = round(length(items) * 0.02))] <- NA
+  as.data.frame(items)
+}
+
+df_raw <- data.frame(
+  id    = sprintf("P%03d", 1:n),
+  group = rep(c("treatment", "control"), each = n / 2)
+)
+
+for (tp in c("t1", "t2")) {
+  df_raw <- bind_cols(
+    df_raw,
+    sim_items(tp, "phq",    9,  0, 3, n),   # PHQ-9
+    sim_items(tp, "cmni30", 30, 1, 6, n),   # CMNI-30
+    sim_items(tp, "erq",    10, 1, 7, n)    # ERQ
+  )
+}
+
+cat("Dataset:", nrow(df_raw), "participants ×", ncol(df_raw), "columns\n")
+```
+
+A quick look at the raw PHQ-9 items:
+
+```{r peek}
+df_raw %>%
+  select(id, group, starts_with("t1_phq")) %>%
+  head()
+```
+
+---
+
+## Step 3 · Look up the scale specs
+
+The package ships with `scale_specs_all` — a named list with one entry per
+questionnaire. This is where you check **how** a scale is scored.
+
+```{r lookup}
+data(scale_specs_all)
+
+# How many scales are registered?
+cat(length(scale_specs_all), "scales in the registry\n\n")
+
+# Look up the PHQ-9 spec
+scale_specs_all$phq
+```
+
+Let's look at a more complex example — the CMNI-30 has inverse items and 10
+subscales:
+
+```{r lookup-cmni}
+scale_specs_all$cmni30$inverse_items
+names(scale_specs_all$cmni30$subscales)
+```
+
+You can browse all registered scales:
+
+```{r browse}
+# Quick summary table
+tibble(
+  scale     = names(scale_specs_all),
+  items     = sapply(scale_specs_all, \(s) length(s$item_indices)),
+  range     = sapply(scale_specs_all, \(s)
+    paste0(s$min_score %||% "?", "–", s$max_score %||% "?")),
+  subscales = sapply(scale_specs_all, \(s)
+    if (is.null(s$subscales)) "—" else as.character(length(s$subscales))),
+  inverse   = sapply(scale_specs_all, \(s)
+    if (is.null(s$inverse_items)) "—"
+    else paste0(length(s$inverse_items), " items"))
+) %>%
+  kable(caption = "All registered scales")
+```
+
+---
+
+## Step 4 · Score the dataset
+
+Set the timepoint prefix and call `create_sum_scores()`. That's it.
+
+```{r score}
+# Tell labscorer which prefix your timepoints use
+options(labscorer.timepoint_prefix = "t")
+
+# Pick the specs for the scales in our data
+# (create_sum_scores auto-detects which specs match, so you can safely
+#  pass the full registry — scales not in the data are skipped)
+result <- create_sum_scores(df_raw, scale_specs_all)
+
+# Unpack the result
+df_scored      <- result$df
+scale_database <- result$database
+```
+
+Let's see what columns were added:
+
+```{r new-cols}
+new_cols <- setdiff(names(df_scored), names(df_raw))
+cat(length(new_cols), "score columns created:\n")
+cat(paste(" ", new_cols), sep = "\n")
+```
+
+---
+
+## Step 5 · Inspect the scores
+
+### PHQ-9 — simple sum and mean
+
+```{r phq}
+df_scored %>%
+  select(id, group, t1_phq_sum, t1_phq_mean, t2_phq_sum, t2_phq_mean) %>%
+  head(10)
+```
+
+### CMNI-30 — total + subscales
+
+```{r cmni}
+df_scored %>%
+  select(id, group,
+         t1_cmni30_sum, t1_cmni30_mean,
+         t1_cmni30_emotional_sub_sum,
+         t1_cmni30_winning_sub_sum,
+         t1_cmni30_violence_sub_sum) %>%
+  head(8)
+```
+
+### ERQ — subscale-only scoring
+
+```{r erq}
+df_scored %>%
+  select(id, group,
+         t1_erq_reappraisal_sub_sum, t1_erq_reappraisal_mean,
+         t1_erq_suppression_sub_sum, t1_erq_suppression_mean) %>%
+  head(10)
+```
+
+---
+
+## Step 6 · Check the `scale_database`
+
+After scoring, `scale_database` contains one row per scale × timepoint with
+diagnostic information. This is your **quality control dashboard**.
+
+### Overview
+
+```{r db-overview}
+scale_database %>%
+  select(scale, timepoint, min_score, max_score, calc_sum, calc_mean) %>%
+  kable(caption = "What was scored")
+```
+
+### Detailed diagnostics
+
+The `created_score_stats` column is a nested table with observed vs.
+theoretical ranges for every computed score:
+
+```{r db-stats}
+db_stats <- scale_database %>%
+  select(scale, timepoint, created_score_stats) %>%
+  unnest(created_score_stats)
+
+db_stats %>%
+  select(scale, timepoint, score_var, score_type,
+         n_items, score_min, score_max, theo_min, theo_max, out_of_range) %>%
+  head(15) %>%
+  kable(caption = "Score diagnostics (first 15 rows)", digits = 2)
+```
+
+### Out-of-range check
+
+This is the most important diagnostic. If any score falls outside the
+theoretical range, something went wrong in the data or the spec:
+
+```{r oor}
+oor <- db_stats %>% filter(out_of_range)
+
+if (nrow(oor) == 0) {
+  cat("✓ All scores within theoretical range — data looks clean.\n")
+} else {
+  cat("⚠ Out-of-range scores detected:\n")
+  oor %>%
+    select(scale, timepoint, score_var,
+           score_min, score_max, theo_min, theo_max) %>%
+    kable()
+}
+```
+
+---
+
+## Step 7 · Visualise
+
+Here's a quick example plotting PHQ-9 change from t1 to t2 by group:
+
+```{r plot, fig.width = 7, fig.height = 4}
+library(ggplot2)
+
+df_scored %>%
+  select(id, group, t1_phq_sum, t2_phq_sum) %>%
+  pivot_longer(cols = c(t1_phq_sum, t2_phq_sum),
+               names_to = "time", values_to = "phq_sum") %>%
+  mutate(time = ifelse(time == "t1_phq_sum", "t1", "t2")) %>%
+  ggplot(aes(x = time, y = phq_sum, colour = group, group = id)) +
+  geom_line(alpha = 0.3) +
+  geom_point(alpha = 0.6) +
+  stat_summary(aes(group = group), fun = mean,
+               geom = "line", linewidth = 1.2) +
+  stat_summary(aes(group = group), fun = mean,
+               geom = "point", size = 3) +
+  labs(x = "Timepoint", y = "PHQ-9 Sum Score", colour = "Group") +
+  theme_minimal(base_size = 13)
+```
+
+---
+
+## How to add a new questionnaire
+
+This is likely why you're reading this tutorial. Here's the full process:
+
+### 1. Check the column names in your data
+
+Make sure the item columns follow `<timepoint>_<scale>_<item>`. If your survey
+software exported zero-padded names (e.g. `t1_phq_01`), use
+`unpad_scale_items()` to fix them before scoring.
+
+### 2. Open `data-raw/scale_specs_all.R`
+
+This file is the master registry. Find the right section (Online Screening,
+Clinical Assessment, Session Measures) and add your entry:
+
+```r
+# ---- Minimal example (simple sum & mean) ----
+gad7 = list(
+  scale        = "gad7",
+  item_indices = 1:7,
+  min_score    = 0,
+  max_score    = 3
+)
+
+# ---- With inverse items ----
+rosenberg = list(
+  scale         = "rosenberg",
+  item_indices  = 1:10,
+  min_score     = 1,
+  max_score     = 4,
+  inverse_items = c(2, 5, 6, 8, 9)
+)
+
+# ---- With subscales ----
+erq = list(
+  scale        = "erq",
+  item_indices = 1:10,
+  min_score    = 1,
+  max_score    = 7,
+  subscales    = list(
+    reappraisal = c(1, 3, 5, 7, 8, 10),
+    suppression = c(2, 4, 6, 9)
+  )
+)
+
+# ---- With custom recoding ----
+ctq28 = list(
+  scale         = "ctq28",
+  item_indices  = setdiff(1:28, c(10, 16, 22)),
+  min_score     = 1,
+  max_score     = 5,
+  inverse_items = c(2, 5, 7, 13, 19, 26, 28),
+  recode_items  = list(
+    "10" = recode_ctq_bagatellization,
+    "16" = recode_ctq_bagatellization,
+    "22" = recode_ctq_bagatellization
+  ),
+  subscales = list(
+    emot_abuse   = c(3, 8, 14, 18, 25),
+    phys_abuse   = c(9, 11, 12, 15, 17)
+  )
+)
+
+# ---- Suppress total scores (e.g. only subscales matter) ----
+cgi_si = list(
+  scale      = "cgi_si",
+  item_indices = 1:2,
+  min_score  = 1,
+  max_score  = 7,
+  calc_sum   = FALSE,
+  calc_mean  = FALSE
+)
+```
+
+### 3. Validate your spec
+
+Before rebuilding the package, run validation to catch typos:
+
+```r
+validate_specs(scale_specs_all)
+```
+
+### 4. Rebuild the package data
+
+```r
+source("data-raw/scale_specs_all.R")   # saves scale_specs_all.rda
+devtools::install()                     # reinstall
+```
+
+### 5. Done
+
+Next time anyone calls `create_sum_scores(df, scale_specs_all)`, your new scale
+will be scored automatically if matching columns are found in the data.
+
+---
+
+## Quick reference
+
+| Function | What it does |
+|---|---|
+| `create_sum_scores(df, specs)` | Score all detected scales, return `list(df, database)` |
+| `calculate_sum_scores(df, ...)` | Score a single scale (low-level) |
+| `validate_specs(specs)` | Check specs for errors and typos |
+| `detect_timepoints(df, scale, prefix)` | Find timepoints in column names |
+| `invert_item(x, min, max)` | Reverse-score an item vector |
+| `unpad_scale_items(df, scales)` | Remove zero-padding from item numbers |
+| `recode_ctq_bagatellization(x)` | Recode CTQ items 10/16/22 |
+
+| Data object | What it is |
+|---|---|
+| `scale_specs_all` | Master registry of all questionnaire specs |
+
+| Option | Purpose | Example |
+|---|---|---|
+| `labscorer.timepoint_prefix` | Set the timepoint prefix | `options(labscorer.timepoint_prefix = "t")` |
+
+---
+
+## Troubleshooting
+
+**"No timepoints detected"** — Check that your columns follow the naming
+convention and that the prefix matches. If your data uses `s1_`, `s2_` for
+session measures, set `options(labscorer.timepoint_prefix = "s")`.
+
+**Scores are all `NA`** — You probably have `na_rm = FALSE` (the default) and
+one or more items are missing. Either clean the data first or pass
+`na_rm = TRUE`.
+
+**"Unknown fields" warning from `validate_specs()`** — You have a typo in a
+field name. Check the spec against the field reference at the top of
+`data-raw/scale_specs_all.R`.
+
+**Subscale items not in `item_indices`** — A subscale references an item number
+that's not in `item_indices`. This usually means the subscale definition or the
+`item_indices` vector needs updating.

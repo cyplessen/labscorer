@@ -1,0 +1,34 @@
+Package: labscorer
+Title: Psychometric Scale Scoring Pipeline for Research Labs
+Version: 0.1.0
+Authors@R:
+    person("Lab", "Team", email = "lab@example.com", role = c("aut", "cre"))
+Description: A standardised pipeline for computing sum scores, mean scores, and
+    subscale scores from psychometric questionnaire data. Supports automatic
+    timepoint detection, item inversion, custom recoding, and built-in range
+    validation via a diagnostic database. Designed so lab members can register
+    new questionnaires by adding a single list entry.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.1.0)
+Imports:
+    dplyr (>= 1.1.0),
+    tibble,
+    stringr,
+    rlang,
+    cli
+Suggests:
+    testthat (>= 3.0.0),
+    tidyr,
+    knitr,
+    rmarkdown,
+    ggplot2,
+    usethis
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+LazyData: true
+URL: https://github.com/yourlab/labscorer
+BugReports: https://github.com/yourlab/labscorer/issues
