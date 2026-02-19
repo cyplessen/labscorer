@@ -11,8 +11,8 @@ A standardised pipeline for computing sum scores, mean scores, and subscale scor
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/yourlab/labscorer}
-  \item Report bugs at \url{https://github.com/yourlab/labscorer/issues}
+  \item \url{https://github.com/cyplessen/labscorer}
+  \item Report bugs at \url{https://github.com/cyplessen/labscorer/issues}
 }
 
 }

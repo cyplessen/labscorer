@@ -17,12 +17,13 @@ Depends:
 Imports:
     dplyr (>= 1.1.0),
     tibble,
+    tidyr,
+    purrr,
     stringr,
     rlang,
     cli
 Suggests:
     testthat (>= 3.0.0),
-    tidyr,
     knitr,
     rmarkdown,
     ggplot2,
@@ -30,5 +31,5 @@ Suggests:
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 LazyData: true
-URL: https://github.com/yourlab/labscorer
-BugReports: https://github.com/yourlab/labscorer/issues
+URL: https://github.com/cyplessen/labscorer
+BugReports: https://github.com/cyplessen/labscorer/issues
