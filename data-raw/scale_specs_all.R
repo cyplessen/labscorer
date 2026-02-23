@@ -182,7 +182,7 @@ scale_specs_all <- list(
 
   ctq28 = list(
     scale         = "ctq28",
-    item_indices  = setdiff(1:28, c(10, 16, 22)),
+    item_indices  = setdiff(1:28, c(10, 16, 22)), # bagatelization items are not part of sum score
     min_score     = 1,
     max_score     = 5,
     inverse_items = c(2, 5, 7, 13, 19, 26, 28),

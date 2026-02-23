@@ -59,6 +59,15 @@ test_that("validate_specs catches subscale items not in item_indices", {
   expect_warning(validate_specs(bad), "99")
 })
 
+test_that("validate_specs allows subscale items that are in recode_items", {
+  ok <- list(ctq = list(
+    scale = "ctq", item_indices = 1:5, min_score = 1, max_score = 5,
+    recode_items = list("6" = identity, "7" = identity),
+    subscales = list(main = 1:5, special = c(6, 7))
+  ))
+  expect_no_warning(validate_specs(ok))
+})
+
 
 test_that("calculate_sum_scores computes sum and mean without timepoints", {
   df <- data.frame(phq_1 = c(0, 1, 2), phq_2 = c(3, 2, 1))

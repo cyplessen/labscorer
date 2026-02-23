@@ -159,13 +159,20 @@ validate_specs <- function(specs) {
       all_ok <- FALSE
     }
 
-    # Subscale items should be subsets of item_indices
+    # Subscale items should be subsets of item_indices (or recode_items)
     if (!is.null(s$subscales) && !is.null(s$item_indices)) {
+      recode_idx <- if (!is.null(s$recode_items)) {
+        as.numeric(names(s$recode_items))
+      } else {
+        numeric(0)
+      }
+      known_items <- union(s$item_indices, recode_idx)
+
       for (sc in names(s$subscales)) {
-        bad <- setdiff(s$subscales[[sc]], s$item_indices)
+        bad <- setdiff(s$subscales[[sc]], known_items)
         if (length(bad) > 0) {
           cli::cli_warn(
-            "{prefix} subscale {.val {sc}} contains item{?s} {.val {bad}} not in {.field item_indices}."
+            "{prefix} subscale {.val {sc}} contains item{?s} {.val {bad}} not in {.field item_indices} or {.field recode_items}."
           )
           all_ok <- FALSE
         }
