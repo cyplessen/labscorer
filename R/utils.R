@@ -280,11 +280,12 @@ process_timepoint <- function(
 #' Move timepoint prefixes to column name postfixes
 #'
 #' Converts column names from prefix format (`t1_phq_sum`) to postfix format
-#' (`phq_sum_t0`). Handles three patterns:
+#' (`phq_sum_t0`). Handles four patterns:
 #'
 #' - `t0_*` (diagnostic) → `*_td`
 #' - `t1_*` through `t5_*` → `*_t0` through `*_t4` (reindexed)
 #' - `s1_*` through `s18_*` → `*_s1` through `*_s18`
+#' - `os1_*`, `os2_*` → `*_os1`, `*_os2`
 #'
 #' @param df A data frame with timepoint-prefixed column names.
 #'
@@ -314,5 +315,14 @@ move_timepoint_to_postfix <- function(df) {
         paste0(varname, "_", snum)
       },
       .cols = dplyr::matches("^s\\d+_")
+    ) %>%
+    # Online screenings: os1_, os2_ move to postfix
+    dplyr::rename_with(
+      ~ {
+        osnum <- stringr::str_extract(.x, "^os\\d+")
+        varname <- stringr::str_replace(.x, "^os\\d+_", "")
+        paste0(varname, "_", osnum)
+      },
+      .cols = dplyr::matches("^os\\d+_")
     )
 }

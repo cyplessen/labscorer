@@ -14,12 +14,13 @@ The data frame with postfix-style column names.
 }
 \description{
 Converts column names from prefix format (\code{t1_phq_sum}) to postfix format
-(\code{phq_sum_t0}). Handles three patterns:
+(\code{phq_sum_t0}). Handles four patterns:
 }
 \details{
 \itemize{
 \item \verb{t0_*} (diagnostic) → \verb{*_td}
 \item \verb{t1_*} through \verb{t5_*} → \verb{*_t0} through \verb{*_t4} (reindexed)
 \item \verb{s1_*} through \verb{s18_*} → \verb{*_s1} through \verb{*_s18}
+\item \verb{os1_*}, \verb{os2_*} → \verb{*_os1}, \verb{*_os2}
 }
 }
