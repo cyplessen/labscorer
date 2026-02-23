@@ -176,3 +176,136 @@ validate_specs <- function(specs) {
   if (all_ok) cli::cli_alert_success("All {length(specs)} spec{?s} passed validation.")
   invisible(all_ok)
 }
+
+#' Process REDCap data for a specific examination timepoint
+#'
+#' Filters and merges REDCap data (observations, disease, medication) for a
+#' given timepoint. Timepoints map to event names as: t1 = `"arm_1"`,
+#' t2 = `"arm_1b"`, t3 = `"arm_1c"`, etc.
+#'
+#' @param data The full REDCap data frame.
+#' @param timepoint Integer 1–5 indicating the examination appointment.
+#' @param arm Character; `"rct"` or `"hc"`.
+#' @param require_obs_assess_dt Logical; require non-missing `obs_assess_dt`?
+#'   Default `TRUE`.
+#'
+#' @return A merged data frame containing all non-missing observations, disease,
+#'   and medication data, with columns prefixed by timepoint (e.g. `t1_`).
+#' @export
+process_timepoint <- function(
+    data,
+    timepoint = 1,
+    arm = c("rct", "hc"),
+    require_obs_assess_dt = TRUE
+) {
+  arm <- match.arg(arm)
+
+  meta_vars <- c(
+    "study_id_raw",
+    "elig_final",
+    "elig_group",
+    "randomized_arm",
+    "redcap_event_name",
+    "redcap_event_name_factor",
+    "arm",
+    "redcap_repeat_instrument",
+    "redcap_repeat_instance",
+    "redcap_repeat_instrument_factor"
+  )
+
+  # ----------------------------
+  # Decide event names
+  # ----------------------------
+  if (arm == "rct") {
+    suffix_map <- c("1", "1b", "1c", "1d", "1e")
+    if (!timepoint %in% 1:5) stop("For arm='rct', timepoint must be 1..5.")
+    exam_event <- paste0("examination_appoin_arm_", suffix_map[timepoint])
+    dis_event <- exam_event
+    med_event <- exam_event
+    tp_prefix <- paste0("t", timepoint, "_")
+  } else {
+    exam_event <- "examination_appoin_arm_2"
+    dis_event  <- "diagnostic_intervi_arm_2"
+    med_event  <- "diagnostic_intervi_arm_2"
+    tp_prefix  <- "t1_"
+  }
+
+  # ----------------------------
+  # Pull data blocks
+  # ----------------------------
+  filtered <- data %>%
+    dplyr::filter(.data$redcap_event_name == exam_event)
+
+  if (require_obs_assess_dt) {
+    filtered <- filtered %>%
+      dplyr::filter(!is.na(.data$obs_assess_dt))
+  }
+
+  filtered <- filtered %>%
+    dplyr::select(where(not_all_na))
+
+  disease <- data %>%
+    dplyr::filter(
+      .data$redcap_event_name == dis_event,
+      .data$redcap_repeat_instrument == "concomitant_disease"
+    ) %>%
+    dplyr::select(where(not_all_na), -dplyr::any_of(meta_vars))
+
+  medication <- data %>%
+    dplyr::filter(
+      .data$redcap_event_name == med_event,
+      .data$redcap_repeat_instrument == "concomitant_medication"
+    ) %>%
+    dplyr::select(where(not_all_na), -dplyr::any_of(meta_vars))
+
+  # ----------------------------
+  # Join + prefix
+  # ----------------------------
+  out <- filtered %>%
+    dplyr::left_join(disease, by = "study_id") %>%
+    dplyr::left_join(medication, by = "study_id") %>%
+    dplyr::rename_with(~ paste0(tp_prefix, .x), -dplyr::all_of("study_id"))
+
+  out
+}
+
+
+#' Move timepoint prefixes to column name postfixes
+#'
+#' Converts column names from prefix format (`t1_phq_sum`) to postfix format
+#' (`phq_sum_t0`). Handles three patterns:
+#'
+#' - `t0_*` (diagnostic) → `*_td`
+#' - `t1_*` through `t5_*` → `*_t0` through `*_t4` (reindexed)
+#' - `s1_*` through `s18_*` → `*_s1` through `*_s18`
+#'
+#' @param df A data frame with timepoint-prefixed column names.
+#'
+#' @return The data frame with postfix-style column names.
+#' @export
+move_timepoint_to_postfix <- function(df) {
+  df %>%
+    # t0 (diagnostic) → _td postfix
+    dplyr::rename_with(
+      ~ stringr::str_replace(.x, "^t0_(.+)$", "\\1_td"),
+      .cols = dplyr::starts_with("t0_")
+    ) %>%
+    # t1-t5 → t0-t4 postfix (reindexed)
+    dplyr::rename_with(
+      ~ {
+        n <- as.integer(stringr::str_extract(.x, "(?<=^t)\\d+"))
+        varname <- stringr::str_replace(.x, "^t\\d+_", "")
+        paste0(varname, "_t", n - 1)
+      },
+      .cols = dplyr::matches("^t[1-9]\\d?_")
+    ) %>%
+    # Sessions: s1-s18 move to postfix
+    dplyr::rename_with(
+      ~ {
+        snum <- stringr::str_extract(.x, "^s\\d+")
+        varname <- stringr::str_replace(.x, "^s\\d+_", "")
+        paste0(varname, "_", snum)
+      },
+      .cols = dplyr::matches("^s\\d+_")
+    )
+}
