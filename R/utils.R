@@ -327,45 +327,21 @@ move_timepoint_to_postfix <- function(df) {
     )
 }
 
-# move_timepoint_to_postfix <- function(df) {
-#   df %>%
-#     # td_ prefix (diagnostic) → _td postfix
-#     dplyr::rename_with(
-#       ~ {
-#         varname <- stringr::str_replace(.x, "^td_", "")
-#         paste0(varname, "_td")
-#       },
-#       .cols = dplyr::starts_with("td_")
-#     ) %>%
-#     # t0-t4 (already reindexed) → _t0-_t4 postfix
-#     dplyr::rename_with(
-#       ~ {
-#         n <- stringr::str_extract(.x, "(?<=^t)\\d+")
-#         varname <- stringr::str_replace(.x, "^t\\d+_", "")
-#         paste0(varname, "_t", n)
-#       },
-#       .cols = dplyr::matches("^t\\d+_")
-#     ) %>%
-#     # Sessions: s1-s18 → _s1-_s18 postfix
-#     dplyr::rename_with(
-#       ~ {
-#         snum <- stringr::str_extract(.x, "^s\\d+")
-#         varname <- stringr::str_replace(.x, "^s\\d+_", "")
-#         paste0(varname, "_", snum)
-#       },
-#       .cols = dplyr::matches("^s\\d+_")
-#     ) %>%
-#     # Online screenings: os1_, os2_ → _os1, _os2 postfix
-#     dplyr::rename_with(
-#       ~ {
-#         osnum <- stringr::str_extract(.x, "^os\\d+")
-#         varname <- stringr::str_replace(.x, "^os\\d+_", "")
-#         paste0(varname, "_", osnum)
-#       },
-#       .cols = dplyr::matches("^os\\d+_")
-#     )
-# }
-
+#' Quick column inspection by name pattern
+#'
+#' Selects all columns whose names contain the given string. Useful for
+#' interactively checking which columns exist for a scale or variable group.
+#'
+#' @param df A data frame.
+#' @param var Character string to match against column names (passed to
+#'   `dplyr::contains()`).
+#'
+#' @return A data frame containing only the matching columns.
+#' @export
+#'
+#' @examples
+#' df <- data.frame(phq_1 = 1, phq_2 = 2, bdi_1 = 3)
+#' check(df, "phq")
 check <- function(df, var) {
-  df %>% select(contains(var))
+  df %>% dplyr::select(dplyr::contains(var))
 }
